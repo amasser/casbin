@@ -15,12 +15,13 @@
 package model
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
-	"github.com/casbin/casbin/config"
-	"github.com/casbin/casbin/log"
-	"github.com/casbin/casbin/util"
+	"github.com/casbin/casbin/v2/config"
+	"github.com/casbin/casbin/v2/log"
+	"github.com/casbin/casbin/v2/util"
 )
 
 // Model represents the whole access control model.
@@ -37,6 +38,9 @@ var sectionNameMap = map[string]string{
 	"m": "matchers",
 }
 
+// Minimal required sections for a model to be valid
+var requiredSections = []string{"r", "p", "e", "m"}
+
 func loadAssertion(model Model, cfg config.ConfigInterface, sec string, key string) bool {
 	value := cfg.String(sectionNameMap[sec] + "::" + key)
 	return model.AddDef(sec, key, value)
@@ -44,18 +48,18 @@ func loadAssertion(model Model, cfg config.ConfigInterface, sec string, key stri
 
 // AddDef adds an assertion to the model.
 func (model Model) AddDef(sec string, key string, value string) bool {
+	if value == "" {
+		return false
+	}
+
 	ast := Assertion{}
 	ast.Key = key
 	ast.Value = value
 
-	if ast.Value == "" {
-		return false
-	}
-
 	if sec == "r" || sec == "p" {
-		ast.Tokens = strings.Split(ast.Value, ", ")
+		ast.Tokens = strings.Split(ast.Value, ",")
 		for i := range ast.Tokens {
-			ast.Tokens[i] = key + "_" + ast.Tokens[i]
+			ast.Tokens[i] = key + "_" + strings.TrimSpace(ast.Tokens[i])
 		}
 	} else {
 		ast.Value = util.RemoveComments(util.EscapeAssertion(ast.Value))
@@ -89,34 +93,75 @@ func loadSection(model Model, cfg config.ConfigInterface, sec string) {
 	}
 }
 
-// LoadModel loads the model from model CONF file.
-func (model Model) LoadModel(path string) {
-	cfg, err := config.NewConfig(path)
+// NewModel creates an empty model.
+func NewModel() Model {
+	m := make(Model)
+	return m
+}
+
+// NewModelFromFile creates a model from a .CONF file.
+func NewModelFromFile(path string) (Model, error) {
+	m := NewModel()
+
+	err := m.LoadModel(path)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	loadSection(model, cfg, "r")
-	loadSection(model, cfg, "p")
-	loadSection(model, cfg, "e")
-	loadSection(model, cfg, "m")
+	return m, nil
+}
 
-	loadSection(model, cfg, "g")
+// NewModelFromString creates a model from a string which contains model text.
+func NewModelFromString(text string) (Model, error) {
+	m := NewModel()
+
+	err := m.LoadModelFromText(text)
+	if err != nil {
+		return nil, err
+	}
+
+	return m, nil
+}
+
+// LoadModel loads the model from model CONF file.
+func (model Model) LoadModel(path string) error {
+	cfg, err := config.NewConfig(path)
+	if err != nil {
+		return err
+	}
+
+	return model.loadModelFromConfig(cfg)
 }
 
 // LoadModelFromText loads the model from the text.
-func (model Model) LoadModelFromText(text string) {
+func (model Model) LoadModelFromText(text string) error {
 	cfg, err := config.NewConfigFromText(text)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
-	loadSection(model, cfg, "r")
-	loadSection(model, cfg, "p")
-	loadSection(model, cfg, "e")
-	loadSection(model, cfg, "m")
+	return model.loadModelFromConfig(cfg)
+}
 
-	loadSection(model, cfg, "g")
+func (model Model) loadModelFromConfig(cfg config.ConfigInterface) error {
+	for s := range sectionNameMap {
+		loadSection(model, cfg, s)
+	}
+	ms := make([]string, 0)
+	for _, rs := range requiredSections {
+		if !model.hasSection(rs) {
+			ms = append(ms, sectionNameMap[rs])
+		}
+	}
+	if len(ms) > 0 {
+		return fmt.Errorf("missing required sections: %s", strings.Join(ms, ","))
+	}
+	return nil
+}
+
+func (model Model) hasSection(sec string) bool {
+	section := model[sec]
+	return section != nil
 }
 
 // PrintModel prints the model to the log.

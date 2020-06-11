@@ -17,35 +17,48 @@ package casbin
 import (
 	"testing"
 
-	"github.com/casbin/casbin/persist/file-adapter"
-	"github.com/casbin/casbin/rbac"
-	"github.com/casbin/casbin/rbac/default-role-manager"
-	"github.com/casbin/casbin/util"
+	fileadapter "github.com/casbin/casbin/v2/persist/file-adapter"
+	"github.com/casbin/casbin/v2/rbac"
+	defaultrolemanager "github.com/casbin/casbin/v2/rbac/default-role-manager"
+	"github.com/casbin/casbin/v2/util"
 )
 
-func testEnforce(t *testing.T, e *Enforcer, sub string, obj interface{}, act string, res bool) {
+func testEnforce(t *testing.T, e *Enforcer, sub interface{}, obj interface{}, act string, res bool) {
 	t.Helper()
-	if e.Enforce(sub, obj, act) != res {
-		t.Errorf("%s, %v, %s: %t, supposed to be %t", sub, obj, act, !res, res)
+	if myRes, _ := e.Enforce(sub, obj, act); myRes != res {
+		t.Errorf("%s, %v, %s: %t, supposed to be %t", sub, obj, act, myRes, res)
 	}
 }
 
 func testEnforceWithoutUsers(t *testing.T, e *Enforcer, obj string, act string, res bool) {
 	t.Helper()
-	if e.Enforce(obj, act) != res {
-		t.Errorf("%s, %s: %t, supposed to be %t", obj, act, !res, res)
+	if myRes, _ := e.Enforce(obj, act); myRes != res {
+		t.Errorf("%s, %s: %t, supposed to be %t", obj, act, myRes, res)
 	}
 }
 
 func testDomainEnforce(t *testing.T, e *Enforcer, sub string, dom string, obj string, act string, res bool) {
 	t.Helper()
-	if e.Enforce(sub, dom, obj, act) != res {
-		t.Errorf("%s, %s, %s, %s: %t, supposed to be %t", sub, dom, obj, act, !res, res)
+	if myRes, _ := e.Enforce(sub, dom, obj, act); myRes != res {
+		t.Errorf("%s, %s, %s, %s: %t, supposed to be %t", sub, dom, obj, act, myRes, res)
 	}
 }
 
 func TestBasicModel(t *testing.T) {
-	e := NewEnforcer("examples/basic_model.conf", "examples/basic_policy.csv")
+	e, _ := NewEnforcer("examples/basic_model.conf", "examples/basic_policy.csv")
+
+	testEnforce(t, e, "alice", "data1", "read", true)
+	testEnforce(t, e, "alice", "data1", "write", false)
+	testEnforce(t, e, "alice", "data2", "read", false)
+	testEnforce(t, e, "alice", "data2", "write", false)
+	testEnforce(t, e, "bob", "data1", "read", false)
+	testEnforce(t, e, "bob", "data1", "write", false)
+	testEnforce(t, e, "bob", "data2", "read", false)
+	testEnforce(t, e, "bob", "data2", "write", true)
+}
+
+func TestBasicModelWithoutSpaces(t *testing.T) {
+	e, _ := NewEnforcer("examples/basic_model_without_spaces.conf", "examples/basic_policy.csv")
 
 	testEnforce(t, e, "alice", "data1", "read", true)
 	testEnforce(t, e, "alice", "data1", "write", false)
@@ -58,7 +71,7 @@ func TestBasicModel(t *testing.T) {
 }
 
 func TestBasicModelNoPolicy(t *testing.T) {
-	e := NewEnforcer("examples/basic_model.conf")
+	e, _ := NewEnforcer("examples/basic_model.conf")
 
 	testEnforce(t, e, "alice", "data1", "read", false)
 	testEnforce(t, e, "alice", "data1", "write", false)
@@ -71,7 +84,7 @@ func TestBasicModelNoPolicy(t *testing.T) {
 }
 
 func TestBasicModelWithRoot(t *testing.T) {
-	e := NewEnforcer("examples/basic_with_root_model.conf", "examples/basic_policy.csv")
+	e, _ := NewEnforcer("examples/basic_with_root_model.conf", "examples/basic_policy.csv")
 
 	testEnforce(t, e, "alice", "data1", "read", true)
 	testEnforce(t, e, "alice", "data1", "write", false)
@@ -88,7 +101,7 @@ func TestBasicModelWithRoot(t *testing.T) {
 }
 
 func TestBasicModelWithRootNoPolicy(t *testing.T) {
-	e := NewEnforcer("examples/basic_with_root_model.conf")
+	e, _ := NewEnforcer("examples/basic_with_root_model.conf")
 
 	testEnforce(t, e, "alice", "data1", "read", false)
 	testEnforce(t, e, "alice", "data1", "write", false)
@@ -105,7 +118,7 @@ func TestBasicModelWithRootNoPolicy(t *testing.T) {
 }
 
 func TestBasicModelWithoutUsers(t *testing.T) {
-	e := NewEnforcer("examples/basic_without_users_model.conf", "examples/basic_without_users_policy.csv")
+	e, _ := NewEnforcer("examples/basic_without_users_model.conf", "examples/basic_without_users_policy.csv")
 
 	testEnforceWithoutUsers(t, e, "data1", "read", true)
 	testEnforceWithoutUsers(t, e, "data1", "write", false)
@@ -114,7 +127,7 @@ func TestBasicModelWithoutUsers(t *testing.T) {
 }
 
 func TestBasicModelWithoutResources(t *testing.T) {
-	e := NewEnforcer("examples/basic_without_resources_model.conf", "examples/basic_without_resources_policy.csv")
+	e, _ := NewEnforcer("examples/basic_without_resources_model.conf", "examples/basic_without_resources_policy.csv")
 
 	testEnforceWithoutUsers(t, e, "alice", "read", true)
 	testEnforceWithoutUsers(t, e, "alice", "write", false)
@@ -123,7 +136,7 @@ func TestBasicModelWithoutResources(t *testing.T) {
 }
 
 func TestRBACModel(t *testing.T) {
-	e := NewEnforcer("examples/rbac_model.conf", "examples/rbac_policy.csv")
+	e, _ := NewEnforcer("examples/rbac_model.conf", "examples/rbac_policy.csv")
 
 	testEnforce(t, e, "alice", "data1", "read", true)
 	testEnforce(t, e, "alice", "data1", "write", false)
@@ -136,7 +149,7 @@ func TestRBACModel(t *testing.T) {
 }
 
 func TestRBACModelWithResourceRoles(t *testing.T) {
-	e := NewEnforcer("examples/rbac_with_resource_roles_model.conf", "examples/rbac_with_resource_roles_policy.csv")
+	e, _ := NewEnforcer("examples/rbac_with_resource_roles_model.conf", "examples/rbac_with_resource_roles_policy.csv")
 
 	testEnforce(t, e, "alice", "data1", "read", true)
 	testEnforce(t, e, "alice", "data1", "write", true)
@@ -149,7 +162,7 @@ func TestRBACModelWithResourceRoles(t *testing.T) {
 }
 
 func TestRBACModelWithDomains(t *testing.T) {
-	e := NewEnforcer("examples/rbac_with_domains_model.conf", "examples/rbac_with_domains_policy.csv")
+	e, _ := NewEnforcer("examples/rbac_with_domains_model.conf", "examples/rbac_with_domains_policy.csv")
 
 	testDomainEnforce(t, e, "alice", "domain1", "data1", "read", true)
 	testDomainEnforce(t, e, "alice", "domain1", "data1", "write", true)
@@ -162,7 +175,7 @@ func TestRBACModelWithDomains(t *testing.T) {
 }
 
 func TestRBACModelWithDomainsAtRuntime(t *testing.T) {
-	e := NewEnforcer("examples/rbac_with_domains_model.conf")
+	e, _ := NewEnforcer("examples/rbac_with_domains_model.conf")
 
 	e.AddPolicy("admin", "domain1", "data1", "read")
 	e.AddPolicy("admin", "domain1", "data1", "write")
@@ -208,7 +221,7 @@ func TestRBACModelWithDomainsAtRuntime(t *testing.T) {
 
 func TestRBACModelWithDomainsAtRuntimeMockAdapter(t *testing.T) {
 	adapter := fileadapter.NewAdapterMock("examples/rbac_with_domains_policy.csv")
-	e := NewEnforcer("examples/rbac_with_domains_model.conf", adapter)
+	e, _ := NewEnforcer("examples/rbac_with_domains_model.conf", adapter)
 
 	e.AddPolicy("admin", "domain3", "data1", "read")
 	e.AddGroupingPolicy("alice", "admin", "domain3")
@@ -225,7 +238,7 @@ func TestRBACModelWithDomainsAtRuntimeMockAdapter(t *testing.T) {
 }
 
 func TestRBACModelWithDeny(t *testing.T) {
-	e := NewEnforcer("examples/rbac_with_deny_model.conf", "examples/rbac_with_deny_policy.csv")
+	e, _ := NewEnforcer("examples/rbac_with_deny_model.conf", "examples/rbac_with_deny_policy.csv")
 
 	testEnforce(t, e, "alice", "data1", "read", true)
 	testEnforce(t, e, "alice", "data1", "write", false)
@@ -238,13 +251,13 @@ func TestRBACModelWithDeny(t *testing.T) {
 }
 
 func TestRBACModelWithOnlyDeny(t *testing.T) {
-	e := NewEnforcer("examples/rbac_with_not_deny_model.conf", "examples/rbac_with_deny_policy.csv")
+	e, _ := NewEnforcer("examples/rbac_with_not_deny_model.conf", "examples/rbac_with_deny_policy.csv")
 
 	testEnforce(t, e, "alice", "data2", "write", false)
 }
 
 func TestRBACModelWithCustomData(t *testing.T) {
-	e := NewEnforcer("examples/rbac_model.conf", "examples/rbac_policy.csv")
+	e, _ := NewEnforcer("examples/rbac_model.conf", "examples/rbac_policy.csv")
 
 	// You can add custom data to a grouping policy, Casbin will ignore it. It is only meaningful to the caller.
 	// This feature can be used to store information like whether "bob" is an end user (so no subject will inherit "bob")
@@ -276,7 +289,7 @@ func TestRBACModelWithCustomData(t *testing.T) {
 }
 
 func TestRBACModelWithPattern(t *testing.T) {
-	e := NewEnforcer("examples/rbac_with_pattern_model.conf", "examples/rbac_with_pattern_policy.csv")
+	e, _ := NewEnforcer("examples/rbac_with_pattern_model.conf", "examples/rbac_with_pattern_policy.csv")
 
 	// Here's a little confusing: the matching function here is not the custom function used in matcher.
 	// It is the matching function used by "g" (and "g2", "g3" if any..)
@@ -337,7 +350,7 @@ func (rm *testCustomRoleManager) GetUsers(name string, domain ...string) ([]stri
 func (rm *testCustomRoleManager) PrintRoles() error { return nil }
 
 func TestRBACModelWithCustomRoleManager(t *testing.T) {
-	e := NewEnforcer("examples/rbac_model.conf", "examples/rbac_policy.csv")
+	e, _ := NewEnforcer("examples/rbac_model.conf", "examples/rbac_policy.csv")
 	e.SetRoleManager(NewRoleManager())
 	e.LoadModel()
 	_ = e.LoadPolicy()
@@ -365,7 +378,7 @@ func newTestResource(name string, owner string) testResource {
 }
 
 func TestABACModel(t *testing.T) {
-	e := NewEnforcer("examples/abac_model.conf")
+	e, _ := NewEnforcer("examples/abac_model.conf")
 
 	data1 := newTestResource("data1", "alice")
 	data2 := newTestResource("data2", "bob")
@@ -381,7 +394,7 @@ func TestABACModel(t *testing.T) {
 }
 
 func TestKeyMatchModel(t *testing.T) {
-	e := NewEnforcer("examples/keymatch_model.conf", "examples/keymatch_policy.csv")
+	e, _ := NewEnforcer("examples/keymatch_model.conf", "examples/keymatch_policy.csv")
 
 	testEnforce(t, e, "alice", "/alice_data/resource1", "GET", true)
 	testEnforce(t, e, "alice", "/alice_data/resource1", "POST", true)
@@ -407,7 +420,7 @@ func TestKeyMatchModel(t *testing.T) {
 }
 
 func TestKeyMatch2Model(t *testing.T) {
-	e := NewEnforcer("examples/keymatch2_model.conf", "examples/keymatch2_policy.csv")
+	e, _ := NewEnforcer("examples/keymatch2_model.conf", "examples/keymatch2_policy.csv")
 
 	testEnforce(t, e, "alice", "/alice_data", "GET", false)
 	testEnforce(t, e, "alice", "/alice_data/resource1", "GET", true)
@@ -433,7 +446,7 @@ func CustomFunctionWrapper(args ...interface{}) (interface{}, error) {
 }
 
 func TestKeyMatchCustomModel(t *testing.T) {
-	e := NewEnforcer("examples/keymatch_custom_model.conf", "examples/keymatch2_policy.csv")
+	e, _ := NewEnforcer("examples/keymatch_custom_model.conf", "examples/keymatch2_policy.csv")
 
 	e.AddFunction("keyMatchCustom", CustomFunctionWrapper)
 
@@ -442,7 +455,7 @@ func TestKeyMatchCustomModel(t *testing.T) {
 }
 
 func TestIPMatchModel(t *testing.T) {
-	e := NewEnforcer("examples/ipmatch_model.conf", "examples/ipmatch_policy.csv")
+	e, _ := NewEnforcer("examples/ipmatch_model.conf", "examples/ipmatch_policy.csv")
 
 	testEnforce(t, e, "192.168.2.123", "data1", "read", true)
 	testEnforce(t, e, "192.168.2.123", "data1", "write", false)
@@ -465,8 +478,27 @@ func TestIPMatchModel(t *testing.T) {
 	testEnforce(t, e, "192.168.0.1", "data2", "write", false)
 }
 
+func TestGlobMatchModel(t *testing.T) {
+	e, _ := NewEnforcer("examples/glob_model.conf", "examples/glob_policy.csv")
+	testEnforce(t, e, "u1", "/foo/", "read", true)
+	testEnforce(t, e, "u1", "/foo", "read", false)
+	testEnforce(t, e, "u1", "/foo/subprefix", "read", true)
+	testEnforce(t, e, "u1", "foo", "read", false)
+
+	testEnforce(t, e, "u2", "/foosubprefix", "read", true)
+	testEnforce(t, e, "u2", "/foo/subprefix", "read", false)
+	testEnforce(t, e, "u2", "foo", "read", false)
+
+	testEnforce(t, e, "u3", "/prefix/foo/subprefix", "read", true)
+	testEnforce(t, e, "u3", "/prefix/foo/", "read", true)
+	testEnforce(t, e, "u3", "/prefix/foo", "read", false)
+
+	testEnforce(t, e, "u4", "/foo", "read", false)
+	testEnforce(t, e, "u4", "foo", "read", true)
+}
+
 func TestPriorityModel(t *testing.T) {
-	e := NewEnforcer("examples/priority_model.conf", "examples/priority_policy.csv")
+	e, _ := NewEnforcer("examples/priority_model.conf", "examples/priority_policy.csv")
 
 	testEnforce(t, e, "alice", "data1", "read", true)
 	testEnforce(t, e, "alice", "data1", "write", false)
@@ -479,18 +511,63 @@ func TestPriorityModel(t *testing.T) {
 }
 
 func TestPriorityModelIndeterminate(t *testing.T) {
-	e := NewEnforcer("examples/priority_model.conf", "examples/priority_indeterminate_policy.csv")
+	e, _ := NewEnforcer("examples/priority_model.conf", "examples/priority_indeterminate_policy.csv")
 
 	testEnforce(t, e, "alice", "data1", "read", false)
 }
 
 func TestRBACModelInMultiLines(t *testing.T) {
-	e := NewEnforcer("examples/rbac_model_in_multi_line.conf", "examples/rbac_policy.csv")
+	e, _ := NewEnforcer("examples/rbac_model_in_multi_line.conf", "examples/rbac_policy.csv")
 
 	testEnforce(t, e, "alice", "data1", "read", true)
 	testEnforce(t, e, "alice", "data1", "write", false)
 	testEnforce(t, e, "alice", "data2", "read", true)
 	testEnforce(t, e, "alice", "data2", "write", true)
+	testEnforce(t, e, "bob", "data1", "read", false)
+	testEnforce(t, e, "bob", "data1", "write", false)
+	testEnforce(t, e, "bob", "data2", "read", false)
+	testEnforce(t, e, "bob", "data2", "write", true)
+}
+
+type testSub struct {
+	Name string
+	Age  int
+}
+
+func newTestSubject(name string, age int) testSub {
+	s := testSub{}
+	s.Name = name
+	s.Age = age
+	return s
+}
+
+func TestABACPolicy(t *testing.T) {
+	e, _ := NewEnforcer("examples/abac_rule_model.conf", "examples/abac_rule_policy.csv")
+	sub1 := newTestSubject("alice", 16)
+	sub2 := newTestSubject("alice", 20)
+	sub3 := newTestSubject("alice", 65)
+
+	testEnforce(t, e, sub1, "/data1", "read", false)
+	testEnforce(t, e, sub1, "/data2", "read", false)
+	testEnforce(t, e, sub1, "/data1", "write", false)
+	testEnforce(t, e, sub1, "/data2", "write", true)
+	testEnforce(t, e, sub2, "/data1", "read", true)
+	testEnforce(t, e, sub2, "/data2", "read", false)
+	testEnforce(t, e, sub2, "/data1", "write", false)
+	testEnforce(t, e, sub2, "/data2", "write", true)
+	testEnforce(t, e, sub3, "/data1", "read", true)
+	testEnforce(t, e, sub3, "/data2", "read", false)
+	testEnforce(t, e, sub3, "/data1", "write", false)
+	testEnforce(t, e, sub3, "/data2", "write", false)
+}
+
+func TestCommentModel(t *testing.T) {
+	e, _ := NewEnforcer("examples/comment_model.conf", "examples/basic_policy.csv")
+
+	testEnforce(t, e, "alice", "data1", "read", true)
+	testEnforce(t, e, "alice", "data1", "write", false)
+	testEnforce(t, e, "alice", "data2", "read", false)
+	testEnforce(t, e, "alice", "data2", "write", false)
 	testEnforce(t, e, "bob", "data1", "read", false)
 	testEnforce(t, e, "bob", "data1", "write", false)
 	testEnforce(t, e, "bob", "data2", "read", false)

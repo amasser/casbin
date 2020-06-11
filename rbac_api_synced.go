@@ -15,29 +15,29 @@
 package casbin
 
 // GetRolesForUser gets the roles that a user has.
-func (e *SyncedEnforcer) GetRolesForUser(name string) []string {
-	e.m.Lock()
-	defer e.m.Unlock()
-	return e.Enforcer.GetRolesForUser(name)
+func (e *SyncedEnforcer) GetRolesForUser(name string, domain ...string) ([]string, error) {
+	e.m.RLock()
+	defer e.m.RUnlock()
+	return e.Enforcer.GetRolesForUser(name, domain...)
 }
 
 // GetUsersForRole gets the users that has a role.
-func (e *SyncedEnforcer) GetUsersForRole(name string) []string {
-	e.m.Lock()
-	defer e.m.Unlock()
-	return e.Enforcer.GetUsersForRole(name)
+func (e *SyncedEnforcer) GetUsersForRole(name string, domain ...string) ([]string, error) {
+	e.m.RLock()
+	defer e.m.RUnlock()
+	return e.Enforcer.GetUsersForRole(name, domain...)
 }
 
 // HasRoleForUser determines whether a user has a role.
-func (e *SyncedEnforcer) HasRoleForUser(name string, role string) bool {
-	e.m.Lock()
-	defer e.m.Unlock()
+func (e *SyncedEnforcer) HasRoleForUser(name string, role string) (bool, error) {
+	e.m.RLock()
+	defer e.m.RUnlock()
 	return e.Enforcer.HasRoleForUser(name, role)
 }
 
 // AddRoleForUser adds a role for a user.
 // Returns false if the user already has the role (aka not affected).
-func (e *SyncedEnforcer) AddRoleForUser(user string, role string) bool {
+func (e *SyncedEnforcer) AddRoleForUser(user string, role string) (bool, error) {
 	e.m.Lock()
 	defer e.m.Unlock()
 	return e.Enforcer.AddRoleForUser(user, role)
@@ -45,7 +45,7 @@ func (e *SyncedEnforcer) AddRoleForUser(user string, role string) bool {
 
 // DeleteRoleForUser deletes a role for a user.
 // Returns false if the user does not have the role (aka not affected).
-func (e *SyncedEnforcer) DeleteRoleForUser(user string, role string) bool {
+func (e *SyncedEnforcer) DeleteRoleForUser(user string, role string) (bool, error) {
 	e.m.Lock()
 	defer e.m.Unlock()
 	return e.Enforcer.DeleteRoleForUser(user, role)
@@ -53,7 +53,7 @@ func (e *SyncedEnforcer) DeleteRoleForUser(user string, role string) bool {
 
 // DeleteRolesForUser deletes all roles for a user.
 // Returns false if the user does not have any roles (aka not affected).
-func (e *SyncedEnforcer) DeleteRolesForUser(user string) bool {
+func (e *SyncedEnforcer) DeleteRolesForUser(user string) (bool, error) {
 	e.m.Lock()
 	defer e.m.Unlock()
 	return e.Enforcer.DeleteRolesForUser(user)
@@ -61,22 +61,23 @@ func (e *SyncedEnforcer) DeleteRolesForUser(user string) bool {
 
 // DeleteUser deletes a user.
 // Returns false if the user does not exist (aka not affected).
-func (e *SyncedEnforcer) DeleteUser(user string) bool {
+func (e *SyncedEnforcer) DeleteUser(user string) (bool, error) {
 	e.m.Lock()
 	defer e.m.Unlock()
 	return e.Enforcer.DeleteUser(user)
 }
 
 // DeleteRole deletes a role.
-func (e *SyncedEnforcer) DeleteRole(role string) {
+// Returns false if the role does not exist (aka not affected).
+func (e *SyncedEnforcer) DeleteRole(role string) (bool, error) {
 	e.m.Lock()
 	defer e.m.Unlock()
-	e.Enforcer.DeleteRole(role)
+	return e.Enforcer.DeleteRole(role)
 }
 
 // DeletePermission deletes a permission.
 // Returns false if the permission does not exist (aka not affected).
-func (e *SyncedEnforcer) DeletePermission(permission ...string) bool {
+func (e *SyncedEnforcer) DeletePermission(permission ...string) (bool, error) {
 	e.m.Lock()
 	defer e.m.Unlock()
 	return e.Enforcer.DeletePermission(permission...)
@@ -84,7 +85,7 @@ func (e *SyncedEnforcer) DeletePermission(permission ...string) bool {
 
 // AddPermissionForUser adds a permission for a user or role.
 // Returns false if the user or role already has the permission (aka not affected).
-func (e *SyncedEnforcer) AddPermissionForUser(user string, permission ...string) bool {
+func (e *SyncedEnforcer) AddPermissionForUser(user string, permission ...string) (bool, error) {
 	e.m.Lock()
 	defer e.m.Unlock()
 	return e.Enforcer.AddPermissionForUser(user, permission...)
@@ -92,7 +93,7 @@ func (e *SyncedEnforcer) AddPermissionForUser(user string, permission ...string)
 
 // DeletePermissionForUser deletes a permission for a user or role.
 // Returns false if the user or role does not have the permission (aka not affected).
-func (e *SyncedEnforcer) DeletePermissionForUser(user string, permission ...string) bool {
+func (e *SyncedEnforcer) DeletePermissionForUser(user string, permission ...string) (bool, error) {
 	e.m.Lock()
 	defer e.m.Unlock()
 	return e.Enforcer.DeletePermissionForUser(user, permission...)
@@ -100,7 +101,7 @@ func (e *SyncedEnforcer) DeletePermissionForUser(user string, permission ...stri
 
 // DeletePermissionsForUser deletes permissions for a user or role.
 // Returns false if the user or role does not have any permissions (aka not affected).
-func (e *SyncedEnforcer) DeletePermissionsForUser(user string) bool {
+func (e *SyncedEnforcer) DeletePermissionsForUser(user string) (bool, error) {
 	e.m.Lock()
 	defer e.m.Unlock()
 	return e.Enforcer.DeletePermissionsForUser(user)
@@ -108,14 +109,14 @@ func (e *SyncedEnforcer) DeletePermissionsForUser(user string) bool {
 
 // GetPermissionsForUser gets permissions for a user or role.
 func (e *SyncedEnforcer) GetPermissionsForUser(user string) [][]string {
-	e.m.Lock()
-	defer e.m.Unlock()
+	e.m.RLock()
+	defer e.m.RUnlock()
 	return e.Enforcer.GetPermissionsForUser(user)
 }
 
 // HasPermissionForUser determines whether a user has a permission.
 func (e *SyncedEnforcer) HasPermissionForUser(user string, permission ...string) bool {
-	e.m.Lock()
-	defer e.m.Unlock()
+	e.m.RLock()
+	defer e.m.RUnlock()
 	return e.Enforcer.HasPermissionForUser(user, permission...)
 }

@@ -1,4 +1,4 @@
-// Copyright 2017 The casbin Authors. All Rights Reserved.
+// Copyright 2018 The casbin Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,30 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package casbin
+package errors
 
-import "testing"
+import "errors"
 
-type SampleWatcher struct {
-}
-
-func (w SampleWatcher) Close() {
-	return
-}
-
-func (w SampleWatcher) SetUpdateCallback(func(string)) error {
-	return nil
-}
-
-func (w SampleWatcher) Update() error {
-	return nil
-}
-
-func TestSetWatcher(t *testing.T) {
-	e, _ := NewEnforcer("examples/rbac_model.conf", "examples/rbac_policy.csv")
-
-	sampleWatcher := SampleWatcher{}
-	e.SetWatcher(sampleWatcher)
-
-	e.SavePolicy() //calls watcher.Update()
-}
+// Global errors for rbac defined here
+var (
+	ERR_NAME_NOT_FOUND    = errors.New("error: name does not exist")
+	ERR_DOMAIN_PARAMETER  = errors.New("error: domain should be 1 parameter")
+	ERR_NAMES12_NOT_FOUND = errors.New("error: name1 or name2 does not exist")
+)

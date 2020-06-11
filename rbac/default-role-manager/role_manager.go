@@ -15,11 +15,12 @@
 package defaultrolemanager
 
 import (
-	"errors"
+	"strings"
 	"sync"
 
-	"github.com/casbin/casbin/log"
-	"github.com/casbin/casbin/rbac"
+	"github.com/casbin/casbin/v2/errors"
+	"github.com/casbin/casbin/v2/log"
+	"github.com/casbin/casbin/v2/rbac"
 )
 
 type MatchingFunc func(arg1, arg2 string) bool
@@ -43,6 +44,9 @@ func NewRoleManager(maxHierarchyLevel int) rbac.RoleManager {
 	return &rm
 }
 
+// e.BuildRoleLinks must be called after AddMatchingFunc().
+//
+// example: e.GetRoleManager().(*defaultrolemanager.RoleManager).AddMatchingFunc('matcher', util.KeyMatch)
 func (rm *RoleManager) AddMatchingFunc(name string, fn MatchingFunc) {
 	rm.hasPattern = true
 	rm.matchingFunc = fn
@@ -65,15 +69,19 @@ func (rm *RoleManager) hasRole(name string) bool {
 }
 
 func (rm *RoleManager) createRole(name string) *Role {
+	role, _ := rm.allRoles.LoadOrStore(name, newRole(name))
+
 	if rm.hasPattern {
 		rm.allRoles.Range(func(key, value interface{}) bool {
-			if rm.matchingFunc(name, key.(string)) {
-				name = key.(string)
+			if rm.matchingFunc(name, key.(string)) && name!=key.(string) {
+				// Add new role to matching role
+				role1, _ := rm.allRoles.LoadOrStore(key.(string), newRole(key.(string)))
+				role.(*Role).addRole(role1.(*Role))
 			}
 			return true
 		})
 	}
-	role, _ := rm.allRoles.LoadOrStore(name, newRole(name))
+
 	return role.(*Role)
 }
 
@@ -91,7 +99,7 @@ func (rm *RoleManager) AddLink(name1 string, name2 string, domain ...string) err
 		name1 = domain[0] + "::" + name1
 		name2 = domain[0] + "::" + name2
 	} else if len(domain) > 1 {
-		return errors.New("error: domain should be 1 parameter")
+		return errors.ERR_DOMAIN_PARAMETER
 	}
 
 	role1 := rm.createRole(name1)
@@ -108,11 +116,11 @@ func (rm *RoleManager) DeleteLink(name1 string, name2 string, domain ...string) 
 		name1 = domain[0] + "::" + name1
 		name2 = domain[0] + "::" + name2
 	} else if len(domain) > 1 {
-		return errors.New("error: domain should be 1 parameter")
+		return errors.ERR_DOMAIN_PARAMETER
 	}
 
 	if !rm.hasRole(name1) || !rm.hasRole(name2) {
-		return errors.New("error: name1 or name2 does not exist")
+		return errors.ERR_NAMES12_NOT_FOUND
 	}
 
 	role1 := rm.createRole(name1)
@@ -128,7 +136,7 @@ func (rm *RoleManager) HasLink(name1 string, name2 string, domain ...string) (bo
 		name1 = domain[0] + "::" + name1
 		name2 = domain[0] + "::" + name2
 	} else if len(domain) > 1 {
-		return false, errors.New("error: domain should be 1 parameter")
+		return false, errors.ERR_DOMAIN_PARAMETER
 	}
 
 	if name1 == name2 {
@@ -149,7 +157,7 @@ func (rm *RoleManager) GetRoles(name string, domain ...string) ([]string, error)
 	if len(domain) == 1 {
 		name = domain[0] + "::" + name
 	} else if len(domain) > 1 {
-		return nil, errors.New("error: domain should be 1 parameter")
+		return nil, errors.ERR_DOMAIN_PARAMETER
 	}
 
 	if !rm.hasRole(name) {
@@ -171,11 +179,11 @@ func (rm *RoleManager) GetUsers(name string, domain ...string) ([]string, error)
 	if len(domain) == 1 {
 		name = domain[0] + "::" + name
 	} else if len(domain) > 1 {
-		return nil, errors.New("error: domain should be 1 parameter")
+		return nil, errors.ERR_DOMAIN_PARAMETER
 	}
 
 	if !rm.hasRole(name) {
-		return nil, errors.New("error: name does not exist")
+		return nil, errors.ERR_NAME_NOT_FOUND
 	}
 
 	names := []string{}
@@ -196,18 +204,21 @@ func (rm *RoleManager) GetUsers(name string, domain ...string) ([]string, error)
 
 // PrintRoles prints all the roles to log.
 func (rm *RoleManager) PrintRoles() error {
-	line := ""
-	rm.allRoles.Range(func(_, value interface{}) bool {
-		if text := value.(*Role).toString(); text != "" {
-			if line == "" {
-				line = text
-			} else {
-				line += ", " + text
+	if log.GetLogger().IsEnabled() {
+		var sb strings.Builder
+		rm.allRoles.Range(func(_, value interface{}) bool {
+			if text := value.(*Role).toString(); text != "" {
+				if sb.Len() == 0 {
+					sb.WriteString(text)
+				} else {
+					sb.WriteString(", ")
+					sb.WriteString(text)
+				}
 			}
-		}
-		return true
-	})
-	log.LogPrint(line)
+			return true
+		})
+		log.LogPrint(sb.String())
+	}
 	return nil
 }
 
@@ -270,23 +281,31 @@ func (r *Role) hasDirectRole(name string) bool {
 }
 
 func (r *Role) toString() string {
-	names := ""
 	if len(r.roles) == 0 {
 		return ""
 	}
+
+	var sb strings.Builder
+	sb.WriteString(r.name)
+	sb.WriteString(" < ")
+	if len(r.roles) != 1 {
+		sb.WriteString("(")
+	}
+
 	for i, role := range r.roles {
 		if i == 0 {
-			names += role.name
+			sb.WriteString(role.name)
 		} else {
-			names += ", " + role.name
+			sb.WriteString(", ")
+			sb.WriteString(role.name)
 		}
 	}
 
-	if len(r.roles) == 1 {
-		return r.name + " < " + names
-	} else {
-		return r.name + " < (" + names + ")"
+	if len(r.roles) != 1 {
+		sb.WriteString(")")
 	}
+
+	return sb.String()
 }
 
 func (r *Role) getRoles() []string {

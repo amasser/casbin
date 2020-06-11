@@ -1,4 +1,4 @@
-// Copyright 2017 The casbin Authors. All Rights Reserved.
+// Copyright 2020 The casbin Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,30 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package casbin
+package persist
 
-import "testing"
-
-type SampleWatcher struct {
-}
-
-func (w SampleWatcher) Close() {
-	return
-}
-
-func (w SampleWatcher) SetUpdateCallback(func(string)) error {
-	return nil
-}
-
-func (w SampleWatcher) Update() error {
-	return nil
-}
-
-func TestSetWatcher(t *testing.T) {
-	e, _ := NewEnforcer("examples/rbac_model.conf", "examples/rbac_policy.csv")
-
-	sampleWatcher := SampleWatcher{}
-	e.SetWatcher(sampleWatcher)
-
-	e.SavePolicy() //calls watcher.Update()
+// BatchAdapter is the interface for Casbin adapters with multiple add and remove policy functions.
+type BatchAdapter interface {
+	Adapter
+	// AddPolicies adds policy rules to the storage.
+	// This is part of the Auto-Save feature.
+	AddPolicies(sec string, ptype string, rules [][]string) error
+	// RemovePolicies removes policy rules from the storage.
+	// This is part of the Auto-Save feature.
+	RemovePolicies(sec string, ptype string, rules [][]string) error
 }

@@ -17,7 +17,7 @@ package casbin
 import (
 	"testing"
 
-	"github.com/casbin/casbin/util"
+	"github.com/casbin/casbin/v2/util"
 )
 
 // testGetUsersInDomain: Add by Gordon
@@ -42,7 +42,7 @@ func testGetRolesInDomain(t *testing.T, e *Enforcer, name string, domain string,
 }
 
 func TestGetImplicitRolesForDomainUser(t *testing.T) {
-	e := NewEnforcer("examples/rbac_with_domains_model.conf", "examples/rbac_with_hierarchy_with_domains_policy.csv")
+	e, _ := NewEnforcer("examples/rbac_with_domains_model.conf", "examples/rbac_with_hierarchy_with_domains_policy.csv")
 
 	// This is only able to retrieve the first level of roles.
 	testGetRolesInDomain(t, e, "alice", "domain1", []string{"role:global_admin"})
@@ -53,48 +53,88 @@ func TestGetImplicitRolesForDomainUser(t *testing.T) {
 
 // TestUserAPIWithDomains: Add by Gordon
 func TestUserAPIWithDomains(t *testing.T) {
-	e := NewEnforcer("examples/rbac_with_domains_model.conf", "examples/rbac_with_domains_policy.csv")
+	e, _ := NewEnforcer("examples/rbac_with_domains_model.conf", "examples/rbac_with_domains_policy.csv")
 
+	testGetUsers(t, e, []string{"alice"}, "admin", "domain1")
 	testGetUsersInDomain(t, e, "admin", "domain1", []string{"alice"})
+
+	testGetUsers(t, e, []string{}, "non_exist", "domain1")
 	testGetUsersInDomain(t, e, "non_exist", "domain1", []string{})
 
+	testGetUsers(t, e, []string{"bob"}, "admin", "domain2")
 	testGetUsersInDomain(t, e, "admin", "domain2", []string{"bob"})
+
+	testGetUsers(t, e, []string{}, "non_exist", "domain2")
 	testGetUsersInDomain(t, e, "non_exist", "domain2", []string{})
 
 	e.DeleteRoleForUserInDomain("alice", "admin", "domain1")
 	e.AddRoleForUserInDomain("bob", "admin", "domain1")
 
+	testGetUsers(t, e, []string{"bob"}, "admin", "domain1")
 	testGetUsersInDomain(t, e, "admin", "domain1", []string{"bob"})
+
+	testGetUsers(t, e, []string{}, "non_exist", "domain1")
 	testGetUsersInDomain(t, e, "non_exist", "domain1", []string{})
 
+	testGetUsers(t, e, []string{"bob"}, "admin", "domain2")
 	testGetUsersInDomain(t, e, "admin", "domain2", []string{"bob"})
+
+	testGetUsers(t, e, []string{}, "non_exist", "domain2")
 	testGetUsersInDomain(t, e, "non_exist", "domain2", []string{})
 }
 
 func TestRoleAPIWithDomains(t *testing.T) {
-	e := NewEnforcer("examples/rbac_with_domains_model.conf", "examples/rbac_with_domains_policy.csv")
+	e, _ := NewEnforcer("examples/rbac_with_domains_model.conf", "examples/rbac_with_domains_policy.csv")
 
+	testGetRoles(t, e, []string{"admin"}, "alice", "domain1")
 	testGetRolesInDomain(t, e, "alice", "domain1", []string{"admin"})
+
+	testGetRoles(t, e, []string{}, "bob", "domain1")
 	testGetRolesInDomain(t, e, "bob", "domain1", []string{})
+
+	testGetRoles(t, e, []string{}, "admin", "domain1")
 	testGetRolesInDomain(t, e, "admin", "domain1", []string{})
+
+	testGetRoles(t, e, []string{}, "non_exist", "domain1")
 	testGetRolesInDomain(t, e, "non_exist", "domain1", []string{})
 
+	testGetRoles(t, e, []string{}, "alice", "domain2")
 	testGetRolesInDomain(t, e, "alice", "domain2", []string{})
+
+	testGetRoles(t, e, []string{"admin"}, "bob", "domain2")
 	testGetRolesInDomain(t, e, "bob", "domain2", []string{"admin"})
+
+	testGetRoles(t, e, []string{}, "admin", "domain2")
 	testGetRolesInDomain(t, e, "admin", "domain2", []string{})
+
+	testGetRoles(t, e, []string{}, "non_exist", "domain2")
 	testGetRolesInDomain(t, e, "non_exist", "domain2", []string{})
 
 	e.DeleteRoleForUserInDomain("alice", "admin", "domain1")
 	e.AddRoleForUserInDomain("bob", "admin", "domain1")
 
+	testGetRoles(t, e, []string{}, "alice", "domain1")
 	testGetRolesInDomain(t, e, "alice", "domain1", []string{})
+
+	testGetRoles(t, e, []string{"admin"}, "bob", "domain1")
 	testGetRolesInDomain(t, e, "bob", "domain1", []string{"admin"})
+
+	testGetRoles(t, e, []string{}, "admin", "domain1")
 	testGetRolesInDomain(t, e, "admin", "domain1", []string{})
+
+	testGetRoles(t, e, []string{}, "non_exist", "domain1")
 	testGetRolesInDomain(t, e, "non_exist", "domain1", []string{})
 
+	testGetRoles(t, e, []string{}, "alice", "domain2")
 	testGetRolesInDomain(t, e, "alice", "domain2", []string{})
+
+	testGetRoles(t, e, []string{"admin"}, "bob", "domain2")
 	testGetRolesInDomain(t, e, "bob", "domain2", []string{"admin"})
+
+	testGetRoles(t, e, []string{}, "admin", "domain2")
 	testGetRolesInDomain(t, e, "admin", "domain2", []string{})
+
+	testGetRoles(t, e, []string{}, "non_exist", "domain2")
 	testGetRolesInDomain(t, e, "non_exist", "domain2", []string{})
 }
 
@@ -109,7 +149,7 @@ func testGetPermissionsInDomain(t *testing.T, e *Enforcer, name string, domain s
 }
 
 func TestPermissionAPIInDomain(t *testing.T) {
-	e := NewEnforcer("examples/rbac_with_domains_model.conf", "examples/rbac_with_domains_policy.csv")
+	e, _ := NewEnforcer("examples/rbac_with_domains_model.conf", "examples/rbac_with_domains_policy.csv")
 
 	testGetPermissionsInDomain(t, e, "alice", "domain1", [][]string{})
 	testGetPermissionsInDomain(t, e, "bob", "domain1", [][]string{})

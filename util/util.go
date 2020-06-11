@@ -20,11 +20,13 @@ import (
 	"strings"
 )
 
+var evalReg *regexp.Regexp = regexp.MustCompile(`\beval\((?P<rule>[^),]*)\)`)
+
 // EscapeAssertion escapes the dots in the assertion, because the expression evaluation doesn't support such variable names.
 func EscapeAssertion(s string) string {
 	//Replace the first dot, because it can't be recognized by the regexp.
-	if (strings.HasPrefix(s, "r") || strings.HasPrefix(s, "p")) {
-		s = strings.Replace(s, ".", "_",1)
+	if strings.HasPrefix(s, "r") || strings.HasPrefix(s, "p") {
+		s = strings.Replace(s, ".", "_", 1)
 	}
 	var regex = regexp.MustCompile(`(\|| |=|\)|\(|&|<|>|,|\+|-|!|\*|\/)(r|p)\.`)
 	s = regex.ReplaceAllStringFunc(s, func(m string) string {
@@ -109,4 +111,63 @@ func SetEquals(a []string, b []string) bool {
 		}
 	}
 	return true
+}
+
+// JoinSlice joins a string and a slice into a new slice.
+func JoinSlice(a string, b ...string) []string {
+	res := make([]string, 0, len(b)+1)
+
+	res = append(res, a)
+	for _, s := range b {
+		res = append(res, s)
+	}
+
+	return res
+}
+
+// JoinSliceAny joins a string and a slice into a new interface{} slice.
+func JoinSliceAny(a string, b ...string) []interface{} {
+	res := make([]interface{}, 0, len(b)+1)
+
+	res = append(res, a)
+	for _, s := range b {
+		res = append(res, s)
+	}
+
+	return res
+}
+
+// SetSubtract returns the elements in `a` that aren't in `b`.
+func SetSubtract(a []string, b []string) []string {
+	mb := make(map[string]struct{}, len(b))
+	for _, x := range b {
+		mb[x] = struct{}{}
+	}
+	var diff []string
+	for _, x := range a {
+		if _, found := mb[x]; !found {
+			diff = append(diff, x)
+		}
+	}
+	return diff
+}
+
+// HasEval determine whether matcher contains function eval
+func HasEval(s string) bool {
+	return evalReg.MatchString(s)
+}
+
+// ReplaceEval replace function eval with the value of its parameters
+func ReplaceEval(s string, rule string) string {
+	return evalReg.ReplaceAllString(s, "("+rule+")")
+}
+
+// GetEvalValue returns the parameters of function eval
+func GetEvalValue(s string) []string {
+	subMatch := evalReg.FindAllStringSubmatch(s, -1)
+	var rules []string
+	for _, rule := range subMatch {
+		rules = append(rules, rule[1])
+	}
+	return rules
 }

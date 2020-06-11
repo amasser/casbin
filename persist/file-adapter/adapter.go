@@ -21,9 +21,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/casbin/casbin/model"
-	"github.com/casbin/casbin/persist"
-	"github.com/casbin/casbin/util"
+	"github.com/casbin/casbin/v2/model"
+	"github.com/casbin/casbin/v2/persist"
+	"github.com/casbin/casbin/v2/util"
 )
 
 // Adapter is the file adapter for Casbin.
@@ -94,11 +94,18 @@ func (a *Adapter) savePolicyFile(text string) error {
 		return err
 	}
 	w := bufio.NewWriter(f)
-	// error intentionally ignored
-	w.WriteString(text)
-	w.Flush()
-	f.Close()
-	return nil
+
+	_, err = w.WriteString(text)
+	if err != nil {
+		return err
+	}
+
+	err = w.Flush()
+	if err != nil {
+		return err
+	}
+
+	return f.Close()
 }
 
 // AddPolicy adds a policy rule to the storage.
@@ -106,8 +113,18 @@ func (a *Adapter) AddPolicy(sec string, ptype string, rule []string) error {
 	return errors.New("not implemented")
 }
 
+// AddPolicies adds policy rules to the storage.
+func (a *Adapter) AddPolicies(sec string, ptype string, rules [][]string) error {
+	return errors.New("not implemented")
+}
+
 // RemovePolicy removes a policy rule from the storage.
 func (a *Adapter) RemovePolicy(sec string, ptype string, rule []string) error {
+	return errors.New("not implemented")
+}
+
+// RemovePolicies removes policy rules from the storage.
+func (a *Adapter) RemovePolicies(sec string, ptype string, rules [][]string) error {
 	return errors.New("not implemented")
 }
 

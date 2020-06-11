@@ -15,14 +15,20 @@
 package casbin
 
 import (
+	defaultrolemanager "github.com/casbin/casbin/v2/rbac/default-role-manager"
+	"sort"
 	"testing"
 
-	"github.com/casbin/casbin/util"
+	"github.com/casbin/casbin/v2/errors"
+	"github.com/casbin/casbin/v2/util"
 )
 
-func testGetRoles(t *testing.T, e *Enforcer, name string, res []string) {
+func testGetRoles(t *testing.T, e *Enforcer, res []string, name string, domain ...string) {
 	t.Helper()
-	myRes := e.GetRolesForUser(name)
+	myRes, err := e.GetRolesForUser(name, domain...)
+	if err != nil {
+		t.Error("Roles for ", name, " could not be fetched: ", err.Error())
+	}
 	t.Log("Roles for ", name, ": ", myRes)
 
 	if !util.SetEquals(res, myRes) {
@@ -30,9 +36,17 @@ func testGetRoles(t *testing.T, e *Enforcer, name string, res []string) {
 	}
 }
 
-func testGetUsers(t *testing.T, e *Enforcer, name string, res []string) {
+func testGetUsers(t *testing.T, e *Enforcer, res []string, name string, domain ...string) {
 	t.Helper()
-	myRes := e.GetUsersForRole(name)
+	myRes, err := e.GetUsersForRole(name, domain...)
+	switch err {
+	case nil:
+		break
+	case errors.ERR_NAME_NOT_FOUND:
+		t.Log("No name found")
+	default:
+		t.Error("Users for ", name, " could not be fetched: ", err.Error())
+	}
 	t.Log("Users for ", name, ": ", myRes)
 
 	if !util.SetEquals(res, myRes) {
@@ -42,7 +56,10 @@ func testGetUsers(t *testing.T, e *Enforcer, name string, res []string) {
 
 func testHasRole(t *testing.T, e *Enforcer, name string, role string, res bool) {
 	t.Helper()
-	myRes := e.HasRoleForUser(name, role)
+	myRes, err := e.HasRoleForUser(name, role)
+	if err != nil {
+		t.Error("HasRoleForUser returned an error: ", err.Error())
+	}
 	t.Log(name, " has role ", role, ": ", myRes)
 
 	if res != myRes {
@@ -51,44 +68,44 @@ func testHasRole(t *testing.T, e *Enforcer, name string, role string, res bool) 
 }
 
 func TestRoleAPI(t *testing.T) {
-	e := NewEnforcer("examples/rbac_model.conf", "examples/rbac_policy.csv")
+	e, _ := NewEnforcer("examples/rbac_model.conf", "examples/rbac_policy.csv")
 
-	testGetRoles(t, e, "alice", []string{"data2_admin"})
-	testGetRoles(t, e, "bob", []string{})
-	testGetRoles(t, e, "data2_admin", []string{})
-	testGetRoles(t, e, "non_exist", []string{})
+	testGetRoles(t, e, []string{"data2_admin"}, "alice")
+	testGetRoles(t, e, []string{}, "bob")
+	testGetRoles(t, e, []string{}, "data2_admin")
+	testGetRoles(t, e, []string{}, "non_exist")
 
 	testHasRole(t, e, "alice", "data1_admin", false)
 	testHasRole(t, e, "alice", "data2_admin", true)
 
 	e.AddRoleForUser("alice", "data1_admin")
 
-	testGetRoles(t, e, "alice", []string{"data1_admin", "data2_admin"})
-	testGetRoles(t, e, "bob", []string{})
-	testGetRoles(t, e, "data2_admin", []string{})
+	testGetRoles(t, e, []string{"data1_admin", "data2_admin"}, "alice")
+	testGetRoles(t, e, []string{}, "bob")
+	testGetRoles(t, e, []string{}, "data2_admin")
 
 	e.DeleteRoleForUser("alice", "data1_admin")
 
-	testGetRoles(t, e, "alice", []string{"data2_admin"})
-	testGetRoles(t, e, "bob", []string{})
-	testGetRoles(t, e, "data2_admin", []string{})
+	testGetRoles(t, e, []string{"data2_admin"}, "alice")
+	testGetRoles(t, e, []string{}, "bob")
+	testGetRoles(t, e, []string{}, "data2_admin")
 
 	e.DeleteRolesForUser("alice")
 
-	testGetRoles(t, e, "alice", []string{})
-	testGetRoles(t, e, "bob", []string{})
-	testGetRoles(t, e, "data2_admin", []string{})
+	testGetRoles(t, e, []string{}, "alice")
+	testGetRoles(t, e, []string{}, "bob")
+	testGetRoles(t, e, []string{}, "data2_admin")
 
 	e.AddRoleForUser("alice", "data1_admin")
 	e.DeleteUser("alice")
 
-	testGetRoles(t, e, "alice", []string{})
-	testGetRoles(t, e, "bob", []string{})
-	testGetRoles(t, e, "data2_admin", []string{})
+	testGetRoles(t, e, []string{}, "alice")
+	testGetRoles(t, e, []string{}, "bob")
+	testGetRoles(t, e, []string{}, "data2_admin")
 
 	e.AddRoleForUser("alice", "data2_admin")
 
-	testEnforce(t, e, "alice", "data1", "read", true)
+	testEnforce(t, e, "alice", "data1", "read", false)
 	testEnforce(t, e, "alice", "data1", "write", false)
 	testEnforce(t, e, "alice", "data2", "read", true)
 	testEnforce(t, e, "alice", "data2", "write", true)
@@ -99,7 +116,7 @@ func TestRoleAPI(t *testing.T) {
 
 	e.DeleteRole("data2_admin")
 
-	testEnforce(t, e, "alice", "data1", "read", true)
+	testEnforce(t, e, "alice", "data1", "read", false)
 	testEnforce(t, e, "alice", "data1", "write", false)
 	testEnforce(t, e, "alice", "data2", "read", false)
 	testEnforce(t, e, "alice", "data2", "write", false)
@@ -107,6 +124,16 @@ func TestRoleAPI(t *testing.T) {
 	testEnforce(t, e, "bob", "data1", "write", false)
 	testEnforce(t, e, "bob", "data2", "read", false)
 	testEnforce(t, e, "bob", "data2", "write", true)
+}
+
+func TestEnforcer_AddRolesForUser(t *testing.T) {
+	e, _ := NewEnforcer("examples/rbac_model.conf", "examples/rbac_policy.csv")
+
+	e.AddRolesForUser("alice", []string{"data1_admin", "data2_admin", "data3_admin"})
+	testGetRoles(t, e, []string{"data1_admin", "data2_admin", "data3_admin"}, "alice")
+	testEnforce(t, e, "alice", "data1", "read", true)
+	testEnforce(t, e, "alice", "data2", "read", true)
+	testEnforce(t, e, "alice", "data2", "write", true)
 }
 
 func testGetPermissions(t *testing.T, e *Enforcer, name string, res [][]string) {
@@ -130,7 +157,7 @@ func testHasPermission(t *testing.T, e *Enforcer, name string, permission []stri
 }
 
 func TestPermissionAPI(t *testing.T) {
-	e := NewEnforcer("examples/basic_without_resources_model.conf", "examples/basic_without_resources_policy.csv")
+	e, _ := NewEnforcer("examples/basic_without_resources_model.conf", "examples/basic_without_resources_policy.csv")
 
 	testEnforceWithoutUsers(t, e, "alice", "read", true)
 	testEnforceWithoutUsers(t, e, "alice", "write", false)
@@ -176,7 +203,7 @@ func TestPermissionAPI(t *testing.T) {
 
 func testGetImplicitRoles(t *testing.T, e *Enforcer, name string, res []string) {
 	t.Helper()
-	myRes := e.GetImplicitRolesForUser(name)
+	myRes, _ := e.GetImplicitRolesForUser(name)
 	t.Log("Implicit roles for ", name, ": ", myRes)
 
 	if !util.ArrayEquals(res, myRes) {
@@ -186,7 +213,7 @@ func testGetImplicitRoles(t *testing.T, e *Enforcer, name string, res []string) 
 
 func testGetImplicitRolesInDomain(t *testing.T, e *Enforcer, name string, domain string, res []string) {
 	t.Helper()
-	myRes := e.GetImplicitRolesForUser(name, domain)
+	myRes, _ := e.GetImplicitRolesForUser(name, domain)
 	t.Log("Implicit roles in domain ", domain, " for ", name, ": ", myRes)
 
 	if !util.ArrayEquals(res, myRes) {
@@ -195,18 +222,29 @@ func testGetImplicitRolesInDomain(t *testing.T, e *Enforcer, name string, domain
 }
 
 func TestImplicitRoleAPI(t *testing.T) {
-	e := NewEnforcer("examples/rbac_model.conf", "examples/rbac_with_hierarchy_policy.csv")
+	e, _ := NewEnforcer("examples/rbac_model.conf", "examples/rbac_with_hierarchy_policy.csv")
 
 	testGetPermissions(t, e, "alice", [][]string{{"alice", "data1", "read"}})
 	testGetPermissions(t, e, "bob", [][]string{{"bob", "data2", "write"}})
 
 	testGetImplicitRoles(t, e, "alice", []string{"admin", "data1_admin", "data2_admin"})
 	testGetImplicitRoles(t, e, "bob", []string{})
+
+	e, _ = NewEnforcer("examples/rbac_with_pattern_model.conf", "examples/rbac_with_pattern_policy.csv")
+
+	e.GetRoleManager().(*defaultrolemanager.RoleManager).AddMatchingFunc("matcher", util.KeyMatch)
+	err := e.BuildRoleLinks()
+	if err != nil {
+		t.Error(err)
+	}
+
+	testGetImplicitRoles(t, e, "cathy", []string{"/book/1/2/3/4/5", "pen_admin", "/book/*", "book_group"})
+	testGetRoles(t, e, []string{"/book/1/2/3/4/5", "pen_admin"}, "cathy")
 }
 
 func testGetImplicitPermissions(t *testing.T, e *Enforcer, name string, res [][]string) {
 	t.Helper()
-	myRes := e.GetImplicitPermissionsForUser(name)
+	myRes, _ := e.GetImplicitPermissionsForUser(name)
 	t.Log("Implicit permissions for ", name, ": ", myRes)
 
 	if !util.Array2DEquals(res, myRes) {
@@ -216,7 +254,7 @@ func testGetImplicitPermissions(t *testing.T, e *Enforcer, name string, res [][]
 
 func testGetImplicitPermissionsWithDomain(t *testing.T, e *Enforcer, name string, domain string, res [][]string) {
 	t.Helper()
-	myRes := e.GetImplicitPermissionsForUser(name, domain)
+	myRes, _ := e.GetImplicitPermissionsForUser(name, domain)
 	t.Log("Implicit permissions for", name, "under", domain, ":", myRes)
 
 	if !util.Array2DEquals(res, myRes) {
@@ -225,7 +263,7 @@ func testGetImplicitPermissionsWithDomain(t *testing.T, e *Enforcer, name string
 }
 
 func TestImplicitPermissionAPI(t *testing.T) {
-	e := NewEnforcer("examples/rbac_model.conf", "examples/rbac_with_hierarchy_policy.csv")
+	e, _ := NewEnforcer("examples/rbac_model.conf", "examples/rbac_with_hierarchy_policy.csv")
 
 	testGetPermissions(t, e, "alice", [][]string{{"alice", "data1", "read"}})
 	testGetPermissions(t, e, "bob", [][]string{{"bob", "data2", "write"}})
@@ -235,6 +273,34 @@ func TestImplicitPermissionAPI(t *testing.T) {
 }
 
 func TestImplicitPermissionAPIWithDomain(t *testing.T) {
-	e := NewEnforcer("examples/rbac_with_domains_model.conf", "examples/rbac_with_hierarchy_with_domains_policy.csv")
+	e, _ := NewEnforcer("examples/rbac_with_domains_model.conf", "examples/rbac_with_hierarchy_with_domains_policy.csv")
 	testGetImplicitPermissionsWithDomain(t, e, "alice", "domain1", [][]string{{"alice", "domain1", "data2", "read"}, {"role:reader", "domain1", "data1", "read"}, {"role:writer", "domain1", "data1", "write"}})
+}
+
+func testGetImplicitUsers(t *testing.T, e *Enforcer, res []string, permission ...string) {
+	t.Helper()
+	myRes, _ := e.GetImplicitUsersForPermission(permission...)
+	t.Log("Implicit users for permission: ", permission, ": ", myRes)
+
+	sort.Strings(res)
+	sort.Strings(myRes)
+
+	if !util.ArrayEquals(res, myRes) {
+		t.Error("Implicit users for permission: ", permission, ": ", myRes, ", supposed to be ", res)
+	}
+}
+
+func TestImplicitUserAPI(t *testing.T) {
+	e, _ := NewEnforcer("examples/rbac_model.conf", "examples/rbac_with_hierarchy_policy.csv")
+
+	testGetImplicitUsers(t, e, []string{"alice"}, "data1", "read")
+	testGetImplicitUsers(t, e, []string{"alice"}, "data1", "write")
+	testGetImplicitUsers(t, e, []string{"alice"}, "data2", "read")
+	testGetImplicitUsers(t, e, []string{"alice", "bob"}, "data2", "write")
+
+	e.ClearPolicy()
+	e.AddPolicy("admin", "data1", "read")
+	e.AddPolicy("bob", "data1", "read")
+	e.AddGroupingPolicy("alice", "admin")
+	testGetImplicitUsers(t, e, []string{"alice", "bob"}, "data1", "read")
 }
